@@ -106,22 +106,52 @@ int main() {
         // this seems kinda bad but idk
         switch(inst) {
             case ADC:
-                rd = (cur_op & 0x0200) >> 5;
+                rd = (cur_op & 0x0100) >> 4;
                 rd += (cur_op & 0x00F0) >> 4;
-                rr = (cur_op & 0x0100) >> 4;
+                rr = (cur_op & 0x0200) >> 5;
                 rr += (cur_op & 0x000F);
                 printf("rd: %d, rr: %d\n", rd, rr);
                 adc(rd, rr);
                 break;
+
             case ADD:
                 // parse rd and rr from the word read from the file
-                rd = (cur_op & 0x0200) >> 5;
+                rd = (cur_op & 0x0100) >> 4;
                 rd += (cur_op & 0x00F0) >> 4;
-                rr = (cur_op & 0x0100) >> 4;
+                rr = (cur_op & 0x0200) >> 5;
                 rr += (cur_op & 0x000F);
                 printf("rd: %d, rr: %d\n", rd, rr);
                 add(rd, rr);
                 break;
+
+            // this adds a constant to one of the upper register pairs (24+25, 26+27, 28+29, 30+31)
+            case ADIW:
+                rd = (cur_op & 0x0030) >> 4;
+                // multiply the value by two since it is in two register increments
+                rd *= 2;
+                // starting register is r24, so set that as 0
+                rd += 24;
+                k = (cur_op & 0x00C0) >> 2;
+                k += (cur_op & 0x000F);
+                adiw(rd, k);
+                break;
+
+            case AND:
+                rd = (cur_op & 0x0100) >> 4;
+                rd += (cur_op & 0x00F0) >> 4;
+                rr = (cur_op & 0x0200) >> 5;
+                rr += (cur_op & 0x000F);
+                and(rd, rr);
+                break;
+
+            case ANDI:
+                rd = (cur_op & 0x00F0) >> 4;
+                rd += 16;
+                k = (cur_op & 0x0F00) >> 4;
+                k += (cur_op & 0x000F);
+                andi(rd, k);
+                break;
+
             case LDI:
                 rd = (cur_op & 0x00F0) >> 4;
                 // this operation only works on registers 16-31, so add 16 so that 0 is r16
