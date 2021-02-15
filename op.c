@@ -1,4 +1,4 @@
-#include "include/op.h"
+#include "op.h"
 #include <stdio.h>
 
 unsigned char parse_op(unsigned short opcode) {
@@ -67,31 +67,61 @@ unsigned char parse_op(unsigned short opcode) {
         case 0xEE:
         case 0xEF:
             return LDI;
+
+        case OUT_OP:
+        case 0xB9:
+        case 0xBA:
+        case 0xBB:
+        case 0xBC:
+        case 0xBD:
+        case 0xBE:
+        case 0xBF:
+            return OUT;
+
+        case RJMP_OP:
+        case 0xC1:
+        case 0xC2:
+        case 0xC3:
+        case 0xC4:
+        case 0xC5:
+        case 0xC6:
+        case 0xC7:
+        case 0xC8:
+        case 0xC9:
+        case 0xCA:
+        case 0xCB:
+        case 0xCC:
+        case 0xCD:
+        case 0xCE:
+        case 0xCF:
+            return RJMP;
         
     }
+
+    return -1;
 }
 
 // same as add, but factors in the carry bit from SREG
 inline void adc(unsigned char rd, unsigned char rr) {
-    unsigned short sum = data_reg[rd] + data_reg[rr] + (SREG & (1<<SREG_C));
+    unsigned short sum = data_reg[rd] + data_reg[rr] + (regs[SREG] & (1<<SREG_C));
     // check whether there was a carry in the msb
-    if(sum > 255) SREG |= (1<<SREG_C);
-    else SREG &= ~(1<<SREG_C);
+    if(sum > 255) regs[SREG] |= (1<<SREG_C);
+    else regs[SREG] &= ~(1<<SREG_C);
     // check whether the msb of the result is set to see if it is signed
-    if(sum & 0x0080) SREG |= (1<<SREG_N);
-    else SREG &= ~(1<<SREG_N);
+    if(sum & 0x0080) regs[SREG] |= (1<<SREG_N);
+    else regs[SREG] &= ~(1<<SREG_N);
     // check whether the addition of two positive signed numbers has yielded a negative (two's complement overflow)
-    if(!(data_reg[rd] & 0x80) && !(data_reg[rr] & 0x80) && (sum & 0x0080)) SREG |= (1<<SREG_V);
-    else SREG &= ~(1<<SREG_V);
+    if(!(data_reg[rd] & 0x80) && !(data_reg[rr] & 0x80) && (sum & 0x0080)) regs[SREG] |= (1<<SREG_V);
+    else regs[SREG] &= ~(1<<SREG_V);
     // check whether bit 3 had a carry
-    if(((data_reg[rd] & 0x0F) + (data_reg[rr] & 0x0F)) > 15) SREG |= (1<<SREG_H);
-    else SREG &= ~(1<<SREG_H);
+    if(((data_reg[rd] & 0x0F) + (data_reg[rr] & 0x0F)) > 15) regs[SREG] |= (1<<SREG_H);
+    else regs[SREG] &= ~(1<<SREG_H);
     // check whether the result was 0
-    if(sum == 0) SREG |= (1<<SREG_Z);
-    else SREG &= ~(1<<SREG_Z);
+    if(sum == 0) regs[SREG] |= (1<<SREG_Z);
+    else regs[SREG] &= ~(1<<SREG_Z);
     // check whether the result was signed or not
-    if(((SREG & (1<<SREG_N)) << 1) ^ (SREG & (1<<SREG_V))) SREG |= (1<<SREG_S);
-    else SREG &= ~(1<<SREG_S);
+    if(((regs[SREG] & (1<<SREG_N)) << 1) ^ (regs[SREG] & (1<<SREG_V))) regs[SREG] |= (1<<SREG_S);
+    else regs[SREG] &= ~(1<<SREG_S);
 
     // set the destination register to the sum
     data_reg[rd] = sum & 0x00FF;
@@ -103,23 +133,23 @@ inline void adc(unsigned char rd, unsigned char rr) {
 inline void add(unsigned char rd, unsigned char rr) {
     unsigned short sum = data_reg[rd] + data_reg[rr];
     // check whether there was a carry in the msb
-    if(sum > 255) SREG |= (1<<SREG_C);
-    else SREG &= ~(1<<SREG_C);
+    if(sum > 255) regs[SREG] |= (1<<SREG_C);
+    else regs[SREG] &= ~(1<<SREG_C);
     // check whether the msb of the result is set to see if it is signed
-    if(sum & 0x0080) SREG |= (1<<SREG_N);
-    else SREG &= ~(1<<SREG_N);
+    if(sum & 0x0080) regs[SREG] |= (1<<SREG_N);
+    else regs[SREG] &= ~(1<<SREG_N);
     // check whether the addition of two positive signed numbers has yielded a negative (two's complement overflow)
-    if(!(data_reg[rd] & 0x80) && !(data_reg[rr] & 0x80) && (sum & 0x0080)) SREG |= (1<<SREG_V);
-    else SREG &= ~(1<<SREG_V);
+    if(!(data_reg[rd] & 0x80) && !(data_reg[rr] & 0x80) && (sum & 0x0080)) regs[SREG] |= (1<<SREG_V);
+    else regs[SREG] &= ~(1<<SREG_V);
     // check whether bit 3 had a carry
-    if(((data_reg[rd] & 0x0F) + (data_reg[rr] & 0x0F)) > 15) SREG |= (1<<SREG_H);
-    else SREG &= ~(1<<SREG_H);
+    if(((data_reg[rd] & 0x0F) + (data_reg[rr] & 0x0F)) > 15) regs[SREG] |= (1<<SREG_H);
+    else regs[SREG] &= ~(1<<SREG_H);
     // check whether the result was 0
-    if(sum == 0) SREG |= (1<<SREG_Z);
-    else SREG &= ~(1<<SREG_Z);
+    if(sum == 0) regs[SREG] |= (1<<SREG_Z);
+    else regs[SREG] &= ~(1<<SREG_Z);
     // check whether the result was signed or not
-    if(((SREG & (1<<SREG_N)) << 1) ^ (SREG & (1<<SREG_V))) SREG |= (1<<SREG_S);
-    else SREG &= ~(1<<SREG_S);
+    if(((regs[SREG] & (1<<SREG_N)) << 1) ^ (regs[SREG] & (1<<SREG_V))) regs[SREG] |= (1<<SREG_S);
+    else regs[SREG] &= ~(1<<SREG_S);
 
     // set the destination register to the sum
     data_reg[rd] = sum & 0x00FF;
@@ -135,20 +165,20 @@ inline void adiw(unsigned char rd, unsigned char k) {
     val += k;
 
     // check if a two's complement overflow resulted from the addition
-    if(!(data_reg[rd + 1] & 0x80) && (val & 0x8000)) SREG |= (1<<SREG_V);
-    else SREG &= ~(1<<SREG_V);
+    if(!(data_reg[rd + 1] & 0x80) && (val & 0x8000)) regs[SREG] |= (1<<SREG_V);
+    else regs[SREG] &= ~(1<<SREG_V);
     // check if the number is negative (in two's complement)
-    if(data_reg[rd + 1] & 0x80) SREG |= (1<<SREG_N);
-    else SREG &= ~(1<<SREG_N);
+    if(data_reg[rd + 1] & 0x80) regs[SREG] |= (1<<SREG_N);
+    else regs[SREG] &= ~(1<<SREG_N);
     // check if the result is signed
-    if(((SREG & (1<<SREG_N)) << 1) ^ (SREG & (1<<SREG_V))) SREG |= (1<<SREG_S);
-    else SREG &= ~(1<<SREG_S);
+    if(((regs[SREG] & (1<<SREG_N)) << 1) ^ (regs[SREG] & (1<<SREG_V))) regs[SREG] |= (1<<SREG_S);
+    else regs[SREG] &= ~(1<<SREG_S);
     // check if sum is zero
-    if(val == 0) SREG |= (1<<SREG_Z);
-    else SREG &= ~(1<<SREG_Z);
+    if(val == 0) regs[SREG] |= (1<<SREG_Z);
+    else regs[SREG] &= ~(1<<SREG_Z);
     // check if there is a carry in the MSB
-    if(val > 65535) SREG |= (1<<SREG_C);
-    else SREG &= ~(1<<SREG_C);
+    if(val > 65535) regs[SREG] |= (1<<SREG_C);
+    else regs[SREG] &= ~(1<<SREG_C);
 
     data_reg[rd + 1] = (val & 0xFF00) >> 8;
     data_reg[rd] = val & 0x00FF;
@@ -161,17 +191,17 @@ inline void and(unsigned char rd, unsigned char rr) {
     data_reg[rd] &= data_reg[rr];
 
     // Microchip's datasheet specifies that this should be cleared
-    SREG &= ~(1<<SREG_V);
+    regs[SREG] &= ~(1<<SREG_V);
     // check if the number is negative under two's complement
-    if(data_reg[rd] & 0x80) SREG |= (1<<SREG_N);
-    else SREG &= ~(1<<SREG_N);
+    if(data_reg[rd] & 0x80) regs[SREG] |= (1<<SREG_N);
+    else regs[SREG] &= ~(1<<SREG_N);
     // this bit should be set based on the outcome of the XOR between SREG_N and SREG_V
     // since SREG_V is always 0, its result is the same as SREG_N
-    if(SREG & (1<<SREG_N)) SREG |= (1<<SREG_S);
-    else SREG &= ~(1<<SREG_S);
+    if(regs[SREG] & (1<<SREG_N)) regs[SREG] |= (1<<SREG_S);
+    else regs[SREG] &= ~(1<<SREG_S);
     // set the zero flag if the result is zero
-    if(data_reg[rd] == 0) SREG |= (1<<SREG_Z);
-    else SREG &= ~(1<<SREG_Z);
+    if(data_reg[rd] == 0) regs[SREG] |= (1<<SREG_Z);
+    else regs[SREG] &= ~(1<<SREG_Z);
 
     pc++;
 }
@@ -181,17 +211,17 @@ inline void andi(unsigned char rd, unsigned char k) {
     data_reg[rd] &= k;
 
     // Microchip's datasheet specifies that this should be cleared
-    SREG &= ~(1<<SREG_V);
+    regs[SREG] &= ~(1<<SREG_V);
     // check if the number is negative under two's complement
-    if(data_reg[rd] & 0x80) SREG |= (1<<SREG_N);
-    else SREG &= ~(1<<SREG_N);
+    if(data_reg[rd] & 0x80) regs[SREG] |= (1<<SREG_N);
+    else regs[SREG] &= ~(1<<SREG_N);
     // this bit should be set based on the outcome of the XOR between SREG_N and SREG_V
     // since SREG_V is always 0, its result is the same as SREG_N
-    if(SREG & (1<<SREG_N)) SREG |= (1<<SREG_S);
-    else SREG &= ~(1<<SREG_S);
+    if(regs[SREG] & (1<<SREG_N)) regs[SREG] |= (1<<SREG_S);
+    else regs[SREG] &= ~(1<<SREG_S);
     // set the zero flag if the result is zero
-    if(data_reg[rd] == 0) SREG |= (1<<SREG_Z);
-    else SREG &= ~(1<<SREG_Z);
+    if(data_reg[rd] == 0) regs[SREG] |= (1<<SREG_Z);
+    else regs[SREG] &= ~(1<<SREG_Z);
 
     pc++;
 }
@@ -200,5 +230,18 @@ inline void andi(unsigned char rd, unsigned char k) {
 inline void ldi(unsigned char rd, unsigned char k) {
     data_reg[rd] = k;
 
+    pc++;
+}
+
+// write to a register in I/O space
+inline void out(unsigned char a, unsigned char rr) {
+    regs[a] = data_reg[rr];
+
+    pc++;
+}
+
+// relative jump; jumps to a certain address within the flash relative to the current PC position
+inline void rjmp(short dest) {
+    pc += dest;
     pc++;
 }

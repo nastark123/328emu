@@ -1,7 +1,7 @@
-#include "include/op.h"
-#include "include/reg.h"
-#include "include/cpu.h"
-#include "include/mem.h"
+#include "op.h"
+#include "reg.h"
+#include "cpu.h"
+#include "mem.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -10,23 +10,15 @@
 void init_regs() {
     memset(data_reg, 0, 32);
 
-    PORTA = 0x00;
-    PORTB = 0x00;
-    PORTC = 0x00;
-    PORTD = 0x00;
-
-    DDRA = 0x00;
-    DDRB = 0x00;
-    DDRC = 0x00;
-    DDRD = 0x00;
-
-    SREG = 0x00;
+    memset(regs, 0 , 256);
 }
 
 void reset() {
     pc = 0;
 
     cur_op = 0;
+
+    init_regs();
 }
 
 // reads the hex file and writes it to the flash buffer
@@ -38,7 +30,7 @@ int copy_to_flash(FILE *file) {
     memset(buff, 0, 1024);
 
     // reset the flash buffer to 0
-    memset(CHIP_FLASH, 0, 32768);
+    memset(chip_flash, 0, 32768);
 
     int bytes_written = 0;
 
@@ -67,7 +59,7 @@ int copy_to_flash(FILE *file) {
             // have to scale by 2, because two ascii characters = 1 byte of hex data
             strncpy(tmp, buff + (2 * i) + 9, 2);
             unsigned char data = (unsigned char) strtol(tmp, NULL, 16);
-            CHIP_FLASH[offset + i] = data;
+            chip_flash[offset + i] = data;
             bytes_written++;
         }
     }
@@ -77,7 +69,6 @@ int copy_to_flash(FILE *file) {
 
 int main() {
     reset();
-    init_regs();
 
     FILE *prog = fopen("test.hex", "r");
 
@@ -87,13 +78,16 @@ int main() {
         return -1;
     }
 
-    for(int flash_index = 0; flash_index < flash_len; flash_index += 2) {
+    // multiply the pc by two since the instructions are in words (16 bits) not bytes
+    while((2 * pc) < flash_len) {
 
-        cur_op = CHIP_FLASH[flash_index + 1];
+        // need to multiply by two since pc measures words, not bytes
+        cur_op = chip_flash[(2 * pc) + 1];
         cur_op <<= 8;
-        cur_op += CHIP_FLASH[flash_index];
+        cur_op += chip_flash[2 * pc];
 
         printf("cur_op: %x\n", cur_op);
+        printf("pc: %ld\n", pc);
 
         unsigned char inst = parse_op(cur_op);
         // not all of these will be used with every instruction
@@ -103,6 +97,11 @@ int main() {
         unsigned char rr;
         // constant value, such as in the ldi instruction
         unsigned char k;
+        // destination register in the I/O space
+        unsigned char a;
+        // offset destination for jump commands
+        short dest;
+
         // this seems kinda bad but idk
         switch(inst) {
             case ADC:
@@ -161,10 +160,24 @@ int main() {
                 ldi(rd, k);
                 break;
 
+            case OUT:
+                a = (cur_op & 0x0600) >> 5;
+                a += (cur_op & 0x000F);
+                rr = (cur_op & 0x0100) >> 4;
+                rr += (cur_op & 0x00F0) >> 4;
+                out(a, rr);
+                break;
+
+            case RJMP:
+                dest = (cur_op & 0x0FFF) << 4;
+                dest /= 32;
+                rjmp(dest);
+                break;
+
         }
 
-        printf("r16: %d, r17: %d\n", data_reg[16], data_reg[17]);
-        printf("SREG: %d\n", SREG);
+        printf("r16: %d, PORTB: %d\n", data_reg[16], regs[PORTB]);
+        printf("SREG: %d\n", regs[SREG]);
         
     }
 
